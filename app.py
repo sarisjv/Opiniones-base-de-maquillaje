@@ -1,134 +1,111 @@
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
-import re
 import nltk
+from nltk.corpus import stopwords
 from collections import Counter
 
-# Configuración básica
-st.set_page_config(
-    page_title="Analizador de Opiniones",
-    layout="wide",
-    menu_items={
-        'Get Help': 'https://github.com/tu-usuario/tu-repo',
-        'About': "App optimizada para Render Free Tier"
-    }
-)
+# Configuración inicial
+st.set_page_config(page_title="Análisis Completo de Opiniones", layout="wide")
+st.title("📊 Análisis de 20 Opiniones de Clientes")
 
-# Descarga mínima de NLTK
+# Descargar recursos de NLTK
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
-# Datos de ejemplo (20 opiniones)
+# Datos de las 20 opiniones
 opiniones = [
-    "Un sérum magnífico, deja la piel espectacular con un acabado natural.",
-    "Este producto es maravilloso, minimiza imperfecciones con una sola aplicación.",
-    # ... (agrega tus 20 opiniones aquí)
+    "Un sérum magnífico, deja la piel espectacular con un acabado natural, el tono está muy bien.",
+    "Este producto es maravilloso, minimiza imperfecciones con una sola aplicación al día. 10/10.",
+    "Es la mejor base si buscas una cobertura muy natural. No se nota que traes algo puesto.",
+    "Excelente base buen cubrimiento.",
+    "Mi piel es sensible y este producto es el mejor aliado del día a día, excelente cubrimiento.",
+    "Excelente base buen cubrimiento.",
+    "El empaque es terrible, no la volveré a comprar porque no sirve el envase, el producto no sale por el aplicador, es fatal.",
+    "Sí se siente una piel diferente después de usar el producto.",
+    "Me gusta mucho cómo deja mi piel, es buen producto aunque no me gusta su presentación.",
+    "Me parece buena, pero pienso que huele mucho a alcohol, no sé si es normal.",
+    "Creo que fue el color que no lo supe elegir, no está mal, pero me imaginaba algo más.",
+    "La base de maquillaje ofrece un acabado mate y aterciopelado que deja la piel lisa.",
+    "La base de maquillaje ofrece un acabado muy lindo y natural.",
+    "Muy buen producto, solo que dura poco tiempo, por ahí unas 5 horas.",
+    "Excelente cobertura y precio.",
+    "No es para nada grasosa.",
+    "El producto es mucho más oscuro de lo que aparece en la referencia.",
+    "Pensé me sentaría mejor el número 8, es muy buena pero noto que toca como poner dos veces.",
+    "No me gustó su cobertura.",
     "La sensación en la piel no me gusta, me arde al aplicarla."
 ]
 
-# Funciones optimizadas sin modelos pesados
+# Función mejorada de análisis de sentimiento
 def analizar_sentimiento(texto):
-    """Análisis de sentimiento básico sin modelos externos"""
-    positivo = ['excelente', 'magnífico', 'maravilloso', 'recomiendo', 'buen', 'genial']
-    negativo = ['terrible', 'decepcionante', 'no me gusta', 'arde', 'problema']
-    
     texto = texto.lower()
-    puntaje = sum(1 for palabra in positivo if palabra in texto) - \
-              sum(1 for palabra in negativo if palabra in texto)
     
-    if puntaje > 0:
-        return "Positivo", puntaje
-    elif puntaje < 0:
-        return "Negativo", abs(puntaje)
+    # Palabras clave para cada categoría
+    positivo = ['magnífico', 'espectacular', 'maravilloso', 'excelente', 'mejor', 'buen', 'recomiendo', 'genial', 'perfecto']
+    negativo = ['terrible', 'fatal', 'no sirve', 'no me gusta', 'arde', 'problema', 'decepcionante']
+    neutral = ['normal', 'regular', 'aceptable', 'satisfactorio']
+    
+    # Contar ocurrencias
+    pos = sum(texto.count(p) for p in positivo)
+    neg = sum(texto.count(n) for n in negativo)
+    neu = sum(texto.count(n) for n in neutral)
+    
+    # Determinar resultado
+    if pos > neg and pos > neu:
+        return "Positivo", pos
+    elif neg > pos and neg > neu:
+        return "Negativo", neg
     else:
-        return "Neutral", 0
+        return "Neutral", neu
 
-def generar_resumen(texto):
-    """Resumen básico tomando las primeras oraciones"""
-    oraciones = nltk.sent_tokenize(texto)
-    return " ".join(oraciones[:2]) + "..." if len(oraciones) > 2 else texto
-
-def palabras_clave(textos, n=10):
-    """Extrae palabras clave frecuentes"""
-    palabras = []
-    for texto in textos:
-        palabras.extend([p for p in nltk.word_tokenize(texto.lower()) 
-                        if p.isalpha() and p not in stopwords.words('spanish')])
-    return Counter(palabras).most_common(n)
-
-# Interfaz de usuario
+# Interfaz mejorada
 def main():
-    st.title("📌 Análisis de Opiniones Optimizado")
+    st.header("Análisis Completo")
     
-    # Pestañas principales
-    tab1, tab2 = st.tabs(["➕ Analizar Nuevo Comentario", "📊 Explorar Opiniones"])
+    # Convertir a DataFrame
+    df = pd.DataFrame({'Opinión': opiniones})
     
-    with tab1:
-        st.header("Analizar Comentario Nuevo")
-        comentario = st.text_area("Escribe tu opinión (máx. 250 caracteres):", 
-                                max_chars=250,
-                                height=150)
-        
-        if st.button("Analizar"):
-            with st.spinner("Procesando..."):
-                # Análisis de sentimiento
-                sentimiento, puntaje = analizar_sentimiento(comentario)
-                st.metric("Sentimiento", f"{sentimiento} (Puntaje: {puntaje})")
-                
-                # Resumen
-                st.text_area("Resumen:", 
-                            value=generar_resumen(comentario),
-                            height=100)
+    # Aplicar análisis a todas las opiniones
+    df['Análisis'] = df['Opinión'].apply(lambda x: analizar_sentimiento(x)[0])
+    df['Puntaje'] = df['Opinión'].apply(lambda x: analizar_sentimiento(x)[1])
     
-    with tab2:
-        st.header("Explorar 20 Opiniones de Ejemplo")
-        opcion = st.radio("Seleccione análisis:",
-                         ["🔍 Ver temas principales", 
-                          "📄 Resumen general",
-                          "📈 Distribución de sentimientos"])
-        
-        if opcion == "🔍 Ver temas principales":
-            st.subheader("Palabras más frecuentes")
-            palabras = palabras_clave(opiniones)
-            
-            # Gráfico de barras
-            df_palabras = pd.DataFrame(palabras, columns=['Palabra', 'Frecuencia'])
-            st.bar_chart(df_palabras.set_index('Palabra'))
-            
-            # Nube de palabras
-            wc = WordCloud(width=600, height=300, background_color='white').generate_from_frequencies(dict(palabras))
-            plt.figure(figsize=(10, 5))
-            plt.imshow(wc)
-            plt.axis('off')
-            st.pyplot(plt, clear_figure=True)
-            
-        elif opcion == "📄 Resumen general":
-            st.subheader("Resumen de las opiniones")
-            texto_largo = " ".join([o[:100] for o in opiniones])  # Limitar longitud
-            resumen = generar_resumen(texto_largo)
-            st.write(resumen)
-            
-        elif opcion == "📈 Distribución de sentimientos":
-            st.subheader("Análisis de Sentimientos")
-            resultados = [analizar_sentimiento(o)[0] for o in opiniones]
-            distribucion = pd.Series(resultados).value_counts()
-            st.bar_chart(distribucion)
-            
-            # Ejemplos
-            st.write("**Ejemplos por categoría:**")
-            for cat in ["Positivo", "Neutral", "Negativo"]:
-                ejemplos = [o for o in opiniones if analizar_sentimiento(o)[0] == cat][:2]
-                if ejemplos:
-                    st.write(f"**{cat}:**")
-                    for e in ejemplos:
-                        st.write(f"- {e[:80]}...")
+    # Mostrar todas las opiniones con su análisis
+    st.subheader("Tabla Completa de Opiniones")
+    st.dataframe(df)
+    
+    # Gráficos de análisis
+    st.subheader("Visualizaciones")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Distribución de sentimientos
+        st.write("**Distribución de Sentimientos**")
+        distribucion = df['Análisis'].value_counts()
+        st.bar_chart(distribucion)
+    
+    with col2:
+        # Palabras más frecuentes
+        st.write("**Palabras Clave**")
+        todas_palabras = ' '.join(opiniones).lower()
+        palabras = [p for p in nltk.word_tokenize(todas_palabras) 
+                   if p.isalpha() and p not in stopwords.words('spanish')]
+        frecuentes = Counter(palabras).most_common(10)
+        st.write(pd.DataFrame(frecuentes, columns=['Palabra', 'Frecuencia']))
+    
+    # Mostrar ejemplos de cada categoría
+    st.subheader("Ejemplos por Categoría")
+    
+    for categoria in ["Positivo", "Neutral", "Negativo"]:
+        st.write(f"**{categoria}:**")
+        ejemplos = df[df['Análisis'] == categoria]['Opinión'].head(3)
+        for i, ejemplo in enumerate(ejemplos, 1):
+            st.write(f"{i}. {ejemplo[:100]}...")
 
 if __name__ == "__main__":
-    from nltk.corpus import stopwords
     main()
