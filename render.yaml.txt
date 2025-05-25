@@ -15,4 +15,6 @@ services:
     envVars:
       - key: NLTK_DATA
         value: ./nltk_data
+      - key: PYTHONUNBUFFERED
+        value: 1
     healthCheckPath: /health
