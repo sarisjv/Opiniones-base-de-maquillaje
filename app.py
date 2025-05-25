@@ -173,7 +173,7 @@ def palabras_clave(textos, n=10):
 def main():
     st.title("💬 Análisis Completo de Opiniones de Productos Cosméticos")
 
-    tab_nb, tab_avanzado = st.tabs(["Análisis rápido (Naive Bayes)", "Análisis avanzado y exploración"])
+    tab_nb, tab_avanzado = st.tabs(["Análisis rápido", "Análisis avanzado y exploración"])
 
     # Pestaña 1: Naive Bayes clásico
     with tab_nb:
