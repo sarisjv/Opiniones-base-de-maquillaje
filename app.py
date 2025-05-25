@@ -1,5 +1,6 @@
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import streamlit as st
 import pandas as pd
@@ -8,186 +9,194 @@ from wordcloud import WordCloud
 import nltk
 from nltk.corpus import stopwords
 from collections import Counter
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
 import re
+import gc
 
 # Configuración inicial
 st.set_page_config(
-    page_title="Clasificador de Sentimientos Mejorado",
-    layout="wide"
+    page_title="Análisis Completo de Opiniones",
+    layout="wide",
+    menu_items={
+        'Get Help': 'https://github.com/tu-usuario/tu-repo',
+        'About': "App de análisis de opiniones con múltiples funcionalidades"
+    }
 )
 
 # Descargar recursos de NLTK
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
-# Base de datos de opiniones
-opiniones = [
-    "Un sérum magnífico, deja la piel espectacular con un acabado natural, el tono está muy bien.",
-    "Este producto es maravilloso, minimiza imperfecciones con una sola aplicación al día. 10/10.",
-    "Es la mejor base si buscas una cobertura muy natural. No se nota que traes algo puesto.",
-    "Excelente base buen cubrimiento.",
-    "Mi piel es sensible y este producto es el mejor aliado del día a día, excelente cubrimiento.",
-    "Excelente base buen cubrimiento.",
-    "El empaque es terrible, no la volveré a comprar porque no sirve el envase, el producto no sale por el aplicador, es fatal.",
-    "Sí se siente una piel diferente después de usar el producto.",
-    "Me gusta mucho cómo deja mi piel, es buen producto aunque no me gusta su presentación.",
-    "Me parece buena, pero pienso que huele mucho a alcohol, no sé si es normal.",
-    "Creo que fue el color que no lo supe elegir, no está mal, pero me imaginaba algo más.",
-    "La base ofrece un acabado mate y aterciopelado que deja la piel lisa.",
-    "La base de maquillaje ofrece un acabado muy lindo y natural.",
-    "Muy buen producto, solo que dura poco tiempo, por ahí unas 5 horas.",
-    "Excelente cobertura y precio.",
-    "No es para nada grasosa.",
-    "El producto es mucho más oscuro de lo que aparece en la referencia.",
-    "Pensé me sentaría mejor el número 8, es muy buena pero noto que toca como poner dos veces.",
-    "No me gustó su cobertura.",
-    "La sensación en la piel no me gusta, me arde al aplicarla."
+# Datos y modelo Naive Bayes
+comentarios = [
+    "Me encanta este producto, es económico",
+    "No me gusta, me reseca mucho la piel",
+    "Es un producto más, no está mal",
+    "Excelente calidad y precio",
+    "Horrible, me irrita la piel",
+    "No tengo opinión",
+    "No lo volvería a comprar",
+    "Lo amo, me deja la piel suave",
+    "Pésimo, me ardió la cara",
+    "Muy bueno, huele delicioso",
+    "No me hizo efecto",
+    "Es neutral para mí",
+    "Fantástico, super recomendado",
+    "Decepcionante, esperaba más",
+    "No me gustó para nada",
+    "Lo recomiendo totalmente",
+    "Es aceptable, nada especial",
+    "Una maravilla de producto",
+    "Es malo, me brotó la piel",
+    "Me agrada, pero no es el mejor"
 ]
 
-# Sistema de clasificación CORREGIDO
-def clasificar_sentimiento(texto):
-    """Clasificador mejorado con umbrales y pesos optimizados"""
-    
-    # Palabras clave con nuevos pesos (aumenté los valores negativos)
+etiquetas = [
+    "positivo", "negativo", "neutral", "positivo", "negativo", "neutral",
+    "negativo", "positivo", "negativo", "positivo", "neutral", "neutral",
+    "positivo", "negativo", "negativo", "positivo", "neutral", "positivo",
+    "negativo", "neutral"
+]
+
+vectorizer = CountVectorizer()
+X = vectorizer.fit_transform(comentarios)
+modelo_nb = MultinomialNB()
+modelo_nb.fit(X, etiquetas)
+
+# Función mejorada de análisis de sentimiento
+def analizar_sentimiento(texto):
     positivo = {
-        'magnífico':2, 'espectacular':2, 'maravilloso':2, 'excelente':2, 
-        'mejor':2, 'recomiendo':2, 'buen':1, 'genial':2, 'perfecto':2,
-        'bonita':1, 'natural':1, 'sana':1, 'fácil':1, 'calidad':1,
-        '10/10':3, 'diferente':1, 'lindo':1, 'bueno':1, 'económico':1,
-        'delicioso':1, 'suave':1, 'recomendado':2, 'aliado':1
+        'magnífico': 3, 'espectacular': 3, 'maravilloso': 3, 'excelente': 3,
+        'mejor': 2, 'recomiendo': 2, 'buen': 2, 'genial': 2, 'perfecto': 3,
+        'bonita': 2, 'natural': 1, 'sana': 1, 'fácil': 1, 'calidad': 2,
+        '10/10': 3, 'mejor aliado': 2, 'muy bien': 2, 'muy bueno': 2,
+        'excelente cobertura': 3, 'no es grasosa': 1, 'diferente': 1
     }
-    
+
     negativo = {
-        'terrible':4, 'fatal':4, 'no sirve':4, 'no me gusta':3, 'arde':4, 
-        'problema':3, 'decepcionante':4, 'pasteluda':3, 'oscuro':2, 
-        'alcohol':2, 'duro':2, 'no volveré':4, 'no sale':3, 'no gustó':3, 
-        'irrita':3, 'brotó':3, 'ardió':3, 'horrible':4, 'pésimo':4, 
-        'decepcionante':4, 'reseca':3, 'malo':3, 'fatal':4, 'problemas':3
+        'terrible': 3, 'fatal': 3, 'no sirve': 3, 'no me gusta': 2,
+        'arde': 3, 'problema': 2, 'decepcionante': 3, 'pasteluda': 2,
+        'oscuro': 1, 'alcohol': 1, 'duro': 1, 'no volveré': 3,
+        'no sale': 2, 'no gustó': 2, 'no gusta': 2,
+        'pensé que sería mejor': 2, 'queda pasteluda': 2, 'irrita': 2, 'problemas': 2
     }
-    
-    # Expresiones negativas reforzadas
+
     expresiones_negativas = [
-        (r'no la volveré a comprar', 5),
-        (r'no me gustó para nada', 5),
-        (r'me irrita la piel', 4),
-        (r'me arde al aplicarla', 5),
-        (r'es mucho más oscuro', 3),
-        (r'no sirve el envase', 4),
-        (r'queda la piel pasteluda', 4),
-        (r'problema con el producto', 4),
-        (r'no me gusta', 3),
-        (r'es terrible', 4)
+        r'no la volver[é|e] a comprar',
+        r'no me gust[oó]',
+        r'no me gusta',
+        r'es mucho más oscuro',
+        r'queda la piel pasteluda',
+        r'me arde al aplicarla',
+        r'no sirve el envase',
+        r'problema con el producto'
     ]
-    
+
     texto = texto.lower()
     score = 0
-    
-    # 1. Detectar expresiones negativas (prioridad alta)
-    for expr, peso in expresiones_negativas:
+
+    for expr in expresiones_negativas:
         if re.search(expr, texto):
-            score -= peso
-    
-    # 2. Puntuación por palabras clave
+            score -= 3
+
     for palabra, valor in positivo.items():
         if palabra in texto:
             score += valor
-    
+
     for palabra, valor in negativo.items():
         if palabra in texto:
             score -= valor
-    
-    # 3. Clasificación con nuevos umbrales
-    if score >= 3:  # Más exigente para positivo
-        return "POSITIVO", abs(score)
-    elif score <= -3:  # Más sensible para negativo
-        return "NEGATIVO", abs(score)
+
+    if score >= 3:
+        return "Positivo", score
+    elif score <= -2:
+        return "Negativo", abs(score)
     else:
-        return "NEUTRAL", 0
+        return "Neutral", 0
 
-# Interfaz de usuario
+# Función de resumen
+def generar_resumen(texto):
+    oraciones = nltk.sent_tokenize(texto)
+    if len(oraciones) > 1:
+        return oraciones[0] + " [...] " + oraciones[-1]
+    return texto
+
+# Función para extraer palabras clave
+def palabras_clave(textos, n=10):
+    palabras_comunes = {'producto', 'base', 'maquillaje', 'piel', 'buen', 'como', 'que', 'con', 'para'}
+    palabras = []
+
+    for texto in textos:
+        tokens = [p.lower() for p in nltk.word_tokenize(texto)
+                  if p.isalpha() and p not in stopwords.words('spanish')
+                  and p.lower() not in palabras_comunes]
+        palabras.extend(tokens)
+
+    return Counter(palabras).most_common(n)
+
+# Interfaz
 def main():
-    st.title("🔍 Clasificador de Sentimientos para Cosméticos")
-    
-    # Pestañas principales
-    tab1, tab2 = st.tabs(["Clasificar Comentario", "Analizar Opiniones"])
-    
-    with tab1:
-        st.header("Clasificar Nuevo Comentario")
-        comentario = st.text_area("Escribe tu opinión sobre el producto:", height=150)
-        
-        if st.button("Clasificar"):
-            if comentario.strip():
-                with st.spinner("Analizando..."):
-                    sentimiento, confianza = clasificar_sentimiento(comentario)
-                    
-                    # Mostrar resultado con énfasis
-                    st.subheader("Resultado del Análisis")
-                    if sentimiento == "POSITIVO":
-                        st.success(f"✅ Sentimiento: {sentimiento} (Confianza: {confianza})")
-                        st.write("**Palabras positivas detectadas:**")
-                        palabras_pos = [p for p in positivo if p in comentario.lower()]
-                        st.write(", ".join(palabras_pos) if palabras_pos else "No se detectaron palabras clave positivas")
-                    
-                    elif sentimiento == "NEGATIVO":
-                        st.error(f"❌ Sentimiento: {sentimiento} (Confianza: {confianza})")
-                        st.write("**Palabras negativas detectadas:**")
-                        palabras_neg = [p for p in negativo if p in comentario.lower()]
-                        st.write(", ".join(palabras_neg) if palabras_neg else "No se detectaron palabras clave negativas")
-                    
-                    else:
-                        st.info(f"➖ Sentimiento: {sentimiento}")
-                        st.write("**Razón:** El comentario no contiene suficientes indicadores positivos o negativos fuertes")
+    st.title("💬 Análisis Completo de Opiniones de Productos Cosméticos")
+
+    tab_nb, tab_avanzado = st.tabs(["Análisis rápido", "Análisis avanzado y exploración"])
+
+    with tab_nb:
+        st.header("Análisis rápido")
+        comentario_usuario = st.text_area("Escribe tu comentario aquí:")
+        if st.button("Analizar Sentimiento"):
+            if comentario_usuario.strip() == "":
+                st.warning("Por favor escribe un comentario antes de analizar.")
             else:
-                st.warning("Por favor ingresa un comentario para analizar")
-    
-    with tab2:
-        st.header("Análisis de Opiniones Existentes")
-        
-        # Analizar todas las opiniones
-        resultados = []
-        for i, opinion in enumerate(opiniones):
-            sentimiento, confianza = clasificar_sentimiento(opinion)
-            resultados.append({
-                "Opinión": opinion,
-                "Sentimiento": sentimiento,
-                "Confianza": confianza
-            })
-        
-        df = pd.DataFrame(resultados)
-        
-        # Mostrar distribución
-        st.subheader("Distribución de Sentimientos")
-        dist = df['Sentimiento'].value_counts()
-        st.bar_chart(dist)
-        
-        # Mostrar ejemplos problemáticos previos
-        st.subheader("Ejemplos de Clasificación")
-        st.write("**Comentarios negativos clasificados correctamente:**")
-        ejemplos_neg = df[df['Sentimiento'] == "NEGATIVO"].sample(2)
-        for _, row in ejemplos_neg.iterrows():
-            st.write(f"- {row['Opinión'][:100]}... (Confianza: {row['Confianza']})")
-        
-        st.write("**Comentarios positivos clasificados correctamente:**")
-        ejemplos_pos = df[df['Sentimiento'] == "POSITIVO"].sample(2)
-        for _, row in ejemplos_pos.iterrows():
-            st.write(f"- {row['Opinión'][:100]}... (Confianza: {row['Confianza']})")
+                comentario_vectorizado = vectorizer.transform([comentario_usuario])
+                prediccion = modelo_nb.predict(comentario_vectorizado)[0]
+                st.success(f"Sentimiento detectado: **{prediccion.upper()}**")
 
-# Variables globales para las palabras clave
-positivo = {
-    'magnífico':2, 'espectacular':2, 'maravilloso':2, 'excelente':2, 
-    'mejor':2, 'recomiendo':2, 'buen':1, 'genial':2, 'perfecto':2,
-    'bonita':1, 'natural':1, 'sana':1, 'fácil':1, 'calidad':1,
-    '10/10':3, 'diferente':1, 'lindo':1, 'bueno':1, 'económico':1,
-    'delicioso':1, 'suave':1, 'recomendado':2, 'aliado':1
-}
+                proba = modelo_nb.predict_proba(comentario_vectorizado)[0]
+                for etiqueta, prob in zip(modelo_nb.classes_, proba):
+                    st.write(f"{etiqueta.capitalize()}: {prob:.2f}")
 
-negativo = {
-    'terrible':4, 'fatal':4, 'no sirve':4, 'no me gusta':3, 'arde':4, 
-    'problema':3, 'decepcionante':4, 'pasteluda':3, 'oscuro':2, 
-    'alcohol':2, 'duro':2, 'no volveré':4, 'no sale':3, 'no gustó':3, 
-    'irrita':3, 'brotó':3, 'ardió':3, 'horrible':4, 'pésimo':4, 
-    'decepcionante':4, 'reseca':3, 'malo':3, 'fatal':4, 'problemas':3
-}
+    with tab_avanzado:
+        st.header("Análisis avanzado de opiniones y exploración de datos")
+
+        subtab1, subtab2 = st.tabs(["Analizar nuevo comentario", "Explorar opiniones existentes"])
+
+        with subtab1:
+            comentario = st.text_area("Escribe tu opinión sobre el producto:", height=150)
+            if st.button("Analizar Sentimiento (Avanzado)"):
+                if comentario.strip():
+                    with st.spinner("Analizando..."):
+                        sentimiento, puntaje = analizar_sentimiento(comentario)
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.subheader("Resultado del Análisis")
+                            if sentimiento == "Positivo":
+                                st.success(f"✅ {sentimiento} (Puntaje: {puntaje})")
+                            elif sentimiento == "Negativo":
+                                st.error(f"❌ {sentimiento} (Puntaje: {puntaje})")
+                            else:
+                                st.info(f"➖ {sentimiento} (Puntaje: {puntaje})")
+
+        with subtab2:
+            st.subheader("Opiniones existentes")
+            opiniones = [
+                "Un sérum magnífico, deja la piel espectacular con un acabado natural, el tono está muy bien.",
+                "Este producto es maravilloso, minimiza imperfecciones con una sola aplicación al día. 10/10.",
+                "El empaque es terrible, no la volveré a comprar porque no sirve el envase.",
+                "Me gusta mucho cómo deja mi piel, es buen producto aunque no me gusta su presentación.",
+                "No me gustó su cobertura.",
+                "La sensación en la piel no me gusta, me arde al aplicarla.",
+                "Excelente cobertura y precio.",
+                "Muy buen producto, solo que dura poco tiempo.",
+                "Es la mejor base si buscas una cobertura muy natural.",
+                "Pensé me sentaría mejor el número 8, es buena pero queda la piel pasteluda."
+            ]
+
+            for i, op in enumerate(opiniones, 1):
+                sentimiento, puntaje = analizar_sentimiento(op)
+                st.markdown(f"**Opinión {i}:** {op}")
+                st.write(f"➡️ Resultado: **{sentimiento}** (Puntaje: {puntaje})")
+                st.divider()
 
 if __name__ == "__main__":
     main()
