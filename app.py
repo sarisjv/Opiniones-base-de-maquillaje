@@ -13,13 +13,23 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
 import gc
 
-# Descargar recursos NLTK
+# Configuración inicial
+st.set_page_config(
+    page_title="Análisis Completo de Opiniones",
+    layout="wide",
+    menu_items={
+        'Get Help': 'https://github.com/tu-usuario/tu-repo',
+        'About': "App de análisis de opiniones con múltiples funcionalidades"
+    }
+)
+
+# Descargar recursos de NLTK (silencioso)
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
-# ----------------------------------
-# Datos para modelo Naive Bayes
-comentarios_nb = [
+# -------------------------------
+# Datos y modelo Naive Bayes (original)
+comentarios = [
     "Me encanta este producto, es económico",
     "No me gusta, me reseca mucho la piel",
     "Es un producto más, no está mal",
@@ -42,20 +52,19 @@ comentarios_nb = [
     "Me agrada, pero no es el mejor"
 ]
 
-etiquetas_nb = [
+etiquetas = [
     "positivo", "negativo", "neutral", "positivo", "negativo", "neutral",
     "negativo", "positivo", "negativo", "positivo", "neutral", "neutral",
     "positivo", "negativo", "negativo", "positivo", "neutral", "positivo",
     "negativo", "neutral"
 ]
 
-# Entrenar modelo Naive Bayes
-vectorizer_nb = CountVectorizer()
-X_nb = vectorizer_nb.fit_transform(comentarios_nb)
+vectorizer = CountVectorizer()
+X = vectorizer.fit_transform(comentarios)
 modelo_nb = MultinomialNB()
-modelo_nb.fit(X_nb, etiquetas_nb)
+modelo_nb.fit(X, etiquetas)
 
-# ----------------------------------
+# -------------------------------
 # Opiniones para análisis avanzado
 opiniones = [
     "Un sérum magnífico, deja la piel espectacular con un acabado natural, el tono está muy bien. Si quieres una opción natural de maquillaje esta es la mejor.",
@@ -70,7 +79,7 @@ opiniones = [
     "Me parece buena, pero pienso que huele mucho a alcohol, no sé si es normal.",
     "Creo que fue el color que no lo supe elegir, no está mal, pero me imaginaba algo más uff.",
     "La base de maquillaje ofrece un acabado mate y aterciopelado que deja la piel lisa y es fácil de aplicar. En general, es una base que destaca por su buen desempeño y calidad.",
-    "La base de maquillaje ofrece un acabado muy lindo y natural.",
+    "La base de maquillaje ofrece an acabado muy lindo y natural.",
     "Muy buen producto, solo que dura poco tiempo, por ahí unas 5 horas, pero muy bueno.",
     "Excelente cobertura y precio.",
     "No es para nada grasosa.",
@@ -80,110 +89,176 @@ opiniones = [
     "La sensación en la piel no me gusta, me arde al aplicarla."
 ]
 
-# ----------------------------------
-# Funciones análisis avanzado
-
+# Función mejorada de análisis de sentimiento
 def analizar_sentimiento(texto):
+    """Analiza el sentimiento con un sistema de reglas mejorado"""
+    # Palabras clave con pesos mejorados
     positivo = {
         'magnífico': 3, 'espectacular': 3, 'maravilloso': 3, 'excelente': 3,
         'mejor': 2, 'recomiendo': 2, 'buen': 2, 'genial': 2, 'perfecto': 3,
-        'bonita': 2, 'natural': 1, 'sana': 1, 'fácil': 1, 'calidad': 2
+        'bonita': 2, 'natural': 1, 'sana': 1, 'fácil': 1, 'calidad': 2,
+        '10/10': 3, 'mejor aliado': 2, 'muy bien': 2, 'muy bueno': 2,
+        'excelente cobertura': 3, 'no es grasosa': 1, 'diferente': 1
     }
+    
     negativo = {
         'terrible': 3, 'fatal': 3, 'no sirve': 3, 'no me gusta': 2,
         'arde': 3, 'problema': 2, 'decepcionante': 3, 'pasteluda': 2,
-        'oscuro': 1, 'alcohol': 1, 'duro': 1
+        'oscuro': 1, 'alcohol': 1, 'duro': 1, 'no volveré': 3,
+        'no sale': 2, 'fatal': 3, 'no gustó': 2, 'no gusta': 2,
+        'pensé que sería mejor': 2, 'queda pasteluda': 2, 'arde': 3,
+        'no la volveré': 3, 'irrita': 2, 'problemas': 2
     }
+    
+    # Expresiones negativas completas
+    expresiones_negativas = [
+        r'no la volveré a comprar',
+        r'no me gustó',
+        r'no me gusta',
+        r'es mucho más oscuro',
+        r'queda la piel pasteluda',
+        r'me arde al aplicarla',
+        r'no sirve el envase',
+        r'problema con el producto'
+    ]
+    
     texto = texto.lower()
     score = 0
+    
+    # Detectar expresiones negativas completas (más confiables)
+    for expr in expresiones_negativas:
+        if re.search(expr, texto):
+            score -= 3  # Fuerte indicador negativo
+    
+    # Puntuación positiva
     for palabra, valor in positivo.items():
         if palabra in texto:
             score += valor
+    
+    # Puntuación negativa
     for palabra, valor in negativo.items():
         if palabra in texto:
             score -= valor
-    if score > 2:
+    
+    # Determinar resultado con umbrales ajustados
+    if score >= 3:  # Umbral más alto para positivo
         return "Positivo", score
-    elif score < -2:
+    elif score <= -2:  # Umbral más bajo para negativo
         return "Negativo", abs(score)
     else:
         return "Neutral", 0
 
+# Función para generar resumen
 def generar_resumen(texto):
+    """Genera un resumen básico del texto"""
     oraciones = nltk.sent_tokenize(texto)
     if len(oraciones) > 1:
-        return f"{oraciones[0]} [...] {oraciones[-1]}"
+        return oraciones[0] + " [...] " + oraciones[-1]
     return texto
 
+# Función para extraer palabras clave
 def palabras_clave(textos, n=10):
-    palabras_comunes = {'producto', 'base', 'maquillaje', 'piel', 'buen', 'como'}
+    """Extrae las palabras más frecuentes excluyendo stopwords"""
+    palabras_comunes = {'producto', 'base', 'maquillaje', 'piel', 'buen', 'como', 'que', 'con', 'para'}
     palabras = []
+    
     for texto in textos:
-        tokens = [p.lower() for p in nltk.word_tokenize(texto)
-                  if p.isalpha() and p not in stopwords.words('spanish')
-                  and p.lower() not in palabras_comunes]
+        tokens = [p.lower() for p in nltk.word_tokenize(texto) 
+                 if p.isalpha() and p not in stopwords.words('spanish') 
+                 and p.lower() not in palabras_comunes]
         palabras.extend(tokens)
+    
     return Counter(palabras).most_common(n)
 
-# ----------------------------------
-# Interfaz Streamlit
+def main():
+    st.title("💬 Análisis Completo de Opiniones de Productos Cosméticos")
 
-st.set_page_config(
-    page_title="Análisis Completo de Opiniones",
-    layout="wide",
-    menu_items={
-        'Get Help': 'https://github.com/tu-usuario/tu-repo',
-        'About': "App de análisis de opiniones con todas las funcionalidades"
-    }
-)
+    tab_nb, tab_avanzado = st.tabs(["Análisis rápido (Naive Bayes)", "Análisis avanzado y exploración"])
 
-st.title("💄 Análisis de Sentimientos y Opiniones de Productos Cosméticos")
-
-tab1, tab2 = st.tabs(["🔎 Modelo Naive Bayes", "📊 Análisis Avanzado y Visualización"])
-
-with tab1:
-    st.header("Análisis con Modelo Naive Bayes")
-    comentario_usuario = st.text_area("Escribe tu comentario aquí:")
-    if st.button("Analizar Sentimiento (NB)"):
-        if comentario_usuario.strip() == "":
-            st.warning("Por favor escribe un comentario antes de analizar.")
-        else:
-            vector_usuario = vectorizer_nb.transform([comentario_usuario])
-            prediccion = modelo_nb.predict(vector_usuario)[0]
-            proba = modelo_nb.predict_proba(vector_usuario)[0]
-            st.success(f"Sentimiento detectado: **{prediccion.upper()}**")
-            st.write("Probabilidades:")
-            for etiqueta, prob in zip(modelo_nb.classes_, proba):
-                st.write(f"{etiqueta.capitalize()}: {prob:.2f}")
-
-with tab2:
-    st.header("Análisis Avanzado de Opiniones Existentes y Nuevas")
-    opcion = st.radio("Seleccione acción:",
-                      ["Analizar Nuevo Comentario", "Explorar Opiniones Existentes"])
-
-    if opcion == "Analizar Nuevo Comentario":
-        comentario = st.text_area("Escribe tu opinión sobre el producto:", height=150)
-        if st.button("Analizar Sentimiento (Avanzado)"):
-            if comentario.strip():
-                with st.spinner("Analizando..."):
-                    sentimiento, puntaje = analizar_sentimiento(comentario)
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.subheader("Resultado del Análisis")
-                        if sentimiento == "Positivo":
-                            st.success(f"✅ {sentimiento} (Puntaje: {puntaje})")
-                        elif sentimiento == "Negativo":
-                            st.error(f"❌ {sentimiento} (Puntaje: {puntaje})")
-                        else:
-                            st.info(f"➖ {sentimiento}")
-                    with col2:
-                        st.subheader("Resumen Automático")
-                        resumen = generar_resumen(comentario)
-                        st.text_area(" ", value=resumen, height=100)
+    # Pestaña 1: Naive Bayes clásico
+    with tab_nb:
+        st.header("Análisis rápido con modelo Naive Bayes")
+        comentario_usuario = st.text_area("Escribe tu comentario aquí:")
+        if st.button("Analizar Sentimiento (Naive Bayes)"):
+            if comentario_usuario.strip() == "":
+                st.warning("Por favor escribe un comentario antes de analizar.")
             else:
-                st.warning("Por favor escribe un comentario para analizar")
+                comentario_vectorizado = vectorizer.transform([comentario_usuario])
+                prediccion = modelo_nb.predict(comentario_vectorizado)[0]
+                st.success(f"Sentimiento detectado: **{prediccion.upper()}**")
 
-    else:  # Explorar Opiniones Existentes
-        st.header("Análisis de las 20 Opiniones")
-        df = pd.DataFrame({'Opinión': opiniones})
-        df['Sentimiento'] = df['Opinión'].apply
+                proba = modelo_nb.predict_proba(comentario_vectorizado)[0]
+                for etiqueta, prob in zip(modelo_nb.classes_, proba):
+                    st.write(f"{etiqueta.capitalize()}: {prob:.2f}")
+
+    # Pestaña 2: análisis avanzado
+    with tab_avanzado:
+        st.header("Análisis avanzado de opiniones y exploración de datos")
+
+        subtab1, subtab2 = st.tabs(["Analizar nuevo comentario", "Explorar opiniones existentes"])
+
+        with subtab1:
+            comentario = st.text_area("Escribe tu opinión sobre el producto:", height=150)
+            if st.button("Analizar Sentimiento (Avanzado)"):
+                if comentario.strip():
+                    with st.spinner("Analizando..."):
+                        sentimiento, puntaje = analizar_sentimiento(comentario)
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.subheader("Resultado del Análisis")
+                            if sentimiento == "Positivo":
+                                st.success(f"✅ {sentimiento} (Puntaje: {puntaje})")
+                            elif sentimiento == "Negativo":
+                                st.error(f"❌ {sentimiento} (Puntaje: {puntaje})")
+                            else:
+                                st.info(f"➖ {sentimiento}")
+
+                        with col2:
+                            st.subheader("Resumen Automático")
+                            resumen = generar_resumen(comentario)
+                            st.text_area(" ", value=resumen, height=100)
+                else:
+                    st.warning("Por favor escribe un comentario para analizar")
+
+        with subtab2:
+            st.header("Análisis de las 20 Opiniones")
+
+            opcion = st.radio("Seleccione el tipo de análisis:",
+                             ["Ver todas las opiniones", "Temas principales", "Distribución de sentimientos"])
+
+            df = pd.DataFrame({'Opinión': opiniones})
+            df['Sentimiento'] = df['Opinión'].apply(lambda x: analizar_sentimiento(x)[0])
+            df['Puntaje'] = df['Opinión'].apply(lambda x: analizar_sentimiento(x)[1])
+
+            if opcion == "Ver todas las opiniones":
+                st.subheader("Tabla Completa de Opiniones")
+                st.dataframe(df)
+
+            elif opcion == "Temas principales":
+                st.subheader("Palabras Clave Más Frecuentes")
+                palabras = palabras_clave(opiniones)
+                st.bar_chart(pd.DataFrame(palabras, columns=['Palabra', 'Frecuencia']).set_index('Palabra'))
+                
+                st.subheader("Nube de Palabras")
+                wordcloud = WordCloud(width=800, height=400, background_color='white').generate(" ".join(opiniones))
+                plt.figure(figsize=(10, 5))
+                plt.imshow(wordcloud, interpolation='bilinear')
+                plt.axis('off')
+                st.pyplot(plt)
+
+            elif opcion == "Distribución de sentimientos":
+                st.subheader("Distribución de Sentimientos")
+                distribucion = df['Sentimiento'].value_counts()
+                st.bar_chart(distribucion)
+                
+                st.write("**Ejemplos por categoría:**")
+                for categoria in ["Positivo", "Neutral", "Negativo"]:
+                    ejemplos = df[df['Sentimiento'] == categoria]['Opinión'].head(2)
+                    if not ejemplos.empty:
+                        st.write(f"**{categoria}:**")
+                        for e in ejemplos:
+                            st.write(f"- {e[:100]}...")
+
+if __name__ == "__main__":
+    import re  # Asegurarse de que re esté importado
+    main()
