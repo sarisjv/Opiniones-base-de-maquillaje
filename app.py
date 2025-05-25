@@ -177,9 +177,9 @@ def main():
 
     # Pestaña 1: Naive Bayes clásico
     with tab_nb:
-        st.header("Análisis rápido con modelo Naive Bayes")
+        st.header("Análisis rápido")
         comentario_usuario = st.text_area("Escribe tu comentario aquí:")
-        if st.button("Analizar Sentimiento (Naive Bayes)"):
+        if st.button("Analizar Sentimiento"):
             if comentario_usuario.strip() == "":
                 st.warning("Por favor escribe un comentario antes de analizar.")
             else:
