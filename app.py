@@ -1,86 +1,136 @@
 import streamlit as st
-import pandas as pd
-import re
+import matplotlib.pyplot as plt
 from collections import Counter
-import nltk
+import re
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+import nltk
+import pandas as pd
 
-# Configuración básica
+# Configuración inicial
 st.set_page_config(page_title="Análisis de Opiniones", layout="wide")
-st.title("📊 Análisis de Opiniones sobre Bases de Maquillaje")
+st.title("Análisis de Opiniones sobre Bases de Maquillaje")
 
-# Descargar datos de NLTK
+# Descargar recursos de NLTK
 nltk.download('punkt')
 nltk.download('stopwords')
 
-# Datos de ejemplo
-opiniones = [
-    "Base excelente, cubre bien sin ser pesada",
-    "No me gustó el tono, muy oscuro para mi piel",
-    "Textura ligera pero buena cobertura",
-    "El empaque no es práctico, se derrama",
-    "Queda natural y dura todo el día"
+# Opiniones iniciales
+opiniones_iniciales = [
+    "Un sérum magnífico, deja la piel espectacular con un acabado natural.",
+    "Este producto es maravilloso, minimiza imperfecciones con una sola aplicación.",
+    "Es la mejor base si buscas una cobertura muy natural.",
+    "Excelente base buen cubrimiento.",
+    "Mi piel es sensible y este producto es el mejor aliado del día a día.",
+    "El empaque es terrible, no la volveré a comprar porque no sirve el envase.",
+    "Me gusta mucho cómo deja mi piel, es buen producto.",
+    "Me parece buena, pero pienso que huele mucho a alcohol.",
+    "La base de maquillaje ofrece un acabado mate y aterciopelado.",
+    "No me gustó su cobertura."
 ]
 
-# Inicializar en session state
+# Inicializar opiniones en session_state
 if 'opiniones' not in st.session_state:
-    st.session_state.opiniones = opiniones.copy()
+    st.session_state.opiniones = opiniones_iniciales.copy()
 
-# Funciones de análisis
-def limpiar_texto(texto):
-    texto = texto.lower()
-    return re.sub(r'[^\w\sáéíóúñ]', '', texto)
+# Funciones de análisis optimizadas
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r'[^\w\sáéíóúñ]', '', text)
+    return text
 
-def analizar_sentimiento(texto):
-    positivas = ['excelente', 'buen', 'buena', 'perfecto', 'natural']
-    negativas = ['no me gustó', 'problema', 'derrama', 'oscuro']
-    texto = limpiar_texto(texto)
+def analyze_sentiment(text):
+    positive_words = {'magnífico', 'espectacular', 'maravilloso', 'excelente', 'buen', 'mejor'}
+    negative_words = {'terrible', 'no sirve', 'problema', 'alcohol', 'no me gustó'}
     
-    if any(palabra in texto for palabra in positivas):
-        return "Positivo"
-    elif any(palabra in texto for palabra in negativas):
-        return "Negativo"
-    return "Neutral"
+    clean_text = clean_text(text)
+    tokens = set(word_tokenize(clean_text))
+    
+    pos = len(tokens & positive_words)
+    neg = len(tokens & negative_words)
+    
+    if pos > neg:
+        return "Positivo", round(pos/(pos+neg+1), 2)
+    elif neg > pos:
+        return "Negativo", round(neg/(pos+neg+1), 2)
+    return "Neutral", 0.5
 
-# Interfaz principal
+def generate_summary(text):
+    sentences = [s.strip() for s in text.split('.') if s.strip()]
+    return '. '.join(sentences[:2]) + ('...' if len(sentences) > 2 else '')
+
+def analyze_topics(texts, n=3):
+    all_text = ' '.join(texts)
+    tokens = [word for word in word_tokenize(clean_text(all_text)) 
+             if word not in stopwords.words('spanish') and len(word) > 3]
+    return [word for word, _ in Counter(tokens).most_common(n)]
+
+# Interfaz de usuario optimizada
 def main():
     # Sidebar para nuevas opiniones
     with st.sidebar:
         st.header("➕ Nueva Opinión")
-        nueva = st.text_area("Escribe tu opinión:")
-        if st.button("Agregar"):
-            if nueva:
-                st.session_state.opiniones.append(nueva)
-                st.success("¡Opinión agregada!")
+        new_opinion = st.text_area("Escribe tu opinión:")
+        if st.button("Analizar y Agregar"):
+            if new_opinion:
+                sentiment, score = analyze_sentiment(new_opinion)
+                st.session_state.opiniones.append(new_opinion)
+                
+                st.success(f"✅ Opinión agregada | Sentimiento: {sentiment} ({score*100}%)")
+                st.subheader("Resumen:")
+                st.write(generate_summary(new_opinion))
             else:
-                st.warning("Escribe una opinión primero")
+                st.warning("Por favor escribe una opinión")
 
     # Mostrar todas las opiniones
     st.header("📝 Todas las Opiniones")
     df = pd.DataFrame({
-        "N°": range(1, len(st.session_state.opiniones)+1),
-        "Opinión": st.session_state.opiniones,
-        "Sentimiento": [analizar_sentimiento(op) for op in st.session_state.opiniones]
+        'N°': range(1, len(st.session_state.opiniones)+1),
+        'Opinión': st.session_state.opiniones,
+        'Sentimiento': [analyze_sentiment(op)[0] for op in st.session_state.opiniones]
     })
-    st.dataframe(df, height=400, use_container_width=True)
+    st.dataframe(df, height=400)
 
-    # Análisis
-    st.header("🔍 Análisis")
+    # Análisis interactivo
+    st.header("🔍 Análisis Interactivo")
     
-    # Palabras frecuentes
-    todas_opiniones = " ".join(st.session_state.opiniones)
-    palabras = [word for word in word_tokenize(limpiar_texto(todas_opiniones)) 
-               if word not in stopwords.words('spanish') and len(word) > 3]
-    contador = Counter(palabras)
+    # Selección de opiniones
+    selected = st.multiselect(
+        "Selecciona opiniones para analizar:",
+        options=df['N°'].tolist(),
+        default=df['N°'].tolist()[:5]
+    )
     
-    st.subheader("📈 Palabras más usadas")
-    st.bar_chart(pd.DataFrame(contador.most_common(10), x=0, y=1)
+    if st.button("Analizar selección"):
+        selected_ops = [st.session_state.opiniones[i-1] for i in selected]
+        
+        # Análisis de temas
+        st.subheader("📌 Temas principales")
+        topics = analyze_topics(selected_ops)
+        for i, topic in enumerate(topics, 1):
+            st.write(f"{i}. {topic.capitalize()}")
+        
+        # Resumen colectivo
+        st.subheader("📄 Resumen colectivo")
+        combined_text = ' '.join(selected_ops)
+        st.write(generate_summary(combined_text))
+        
+        # Distribución de sentimientos
+        st.subheader("😃 Sentimientos")
+        sentiment_dist = df[df['N°'].isin(selected)]['Sentimiento'].value_counts()
+        st.bar_chart(sentiment_dist)
 
-    # Distribución de sentimientos
-    st.subheader("😃😐😠 Sentimientos")
-    dist = df['Sentimiento'].value_counts()
-    st.bar_chart(dist)
+    # Análisis individual
+    st.header("🔎 Análisis por opinión")
+    op_num = st.selectbox("Selecciona una opinión:", df['N°'])
+    selected_op = st.session_state.opiniones[op_num-1]
+    
+    st.write("**Opinión seleccionada:**")
+    st.info(selected_op)
+    
+    sentiment, score = analyze_sentiment(selected_op)
+    st.write(f"**Sentimiento:** {sentiment} (Confianza: {score*100:.0f}%)")
+    st.write("**Resumen:**", generate_summary(selected_op))
 
 if __name__ == "__main__":
     main()
