@@ -3,5 +3,4 @@ pandas==2.2.1
 matplotlib==3.8.2
 wordcloud==1.9.3
 nltk==3.8.1
-streamlit
-scikit-learn
+scikit-learn==1.4.1.post1
