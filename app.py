@@ -1,6 +1,5 @@
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 import streamlit as st
 import pandas as pd
@@ -13,12 +12,8 @@ import re
 
 # Configuración inicial
 st.set_page_config(
-    page_title="Análisis de Sentimientos Cosméticos",
-    layout="wide",
-    menu_items={
-        'Get Help': 'https://github.com/tu-usuario/tu-repo',
-        'About': "Clasificador de sentimientos para comentarios de productos cosméticos"
-    }
+    page_title="Clasificador de Sentimientos Mejorado",
+    layout="wide"
 )
 
 # Descargar recursos de NLTK
@@ -49,50 +44,50 @@ opiniones = [
     "La sensación en la piel no me gusta, me arde al aplicarla."
 ]
 
-# Sistema de clasificación mejorado
+# Sistema de clasificación CORREGIDO
 def clasificar_sentimiento(texto):
-    """Clasifica el comentario en Positivo, Negativo o Neutral con mayor precisión"""
+    """Clasificador mejorado con umbrales y pesos optimizados"""
     
-    # Diccionario mejorado de palabras clave
+    # Palabras clave con nuevos pesos (aumenté los valores negativos)
     positivo = {
-        'magnífico':3, 'espectacular':3, 'maravilloso':3, 'excelente':3, 'mejor':2,
-        'recomiendo':2, 'buen':2, 'genial':2, 'perfecto':3, 'bonita':2, 'natural':1,
-        'sana':1, 'fácil':1, 'calidad':2, '10/10':3, 'diferente':1, 'lindo':2,
-        'bueno':2, 'económico':1, 'delicioso':1, 'suave':1, 'recomendado':2
+        'magnífico':2, 'espectacular':2, 'maravilloso':2, 'excelente':2, 
+        'mejor':2, 'recomiendo':2, 'buen':1, 'genial':2, 'perfecto':2,
+        'bonita':1, 'natural':1, 'sana':1, 'fácil':1, 'calidad':1,
+        '10/10':3, 'diferente':1, 'lindo':1, 'bueno':1, 'económico':1,
+        'delicioso':1, 'suave':1, 'recomendado':2, 'aliado':1
     }
     
     negativo = {
-        'terrible':3, 'fatal':3, 'no sirve':3, 'no me gusta':2, 'arde':3, 'problema':2,
-        'decepcionante':3, 'pasteluda':2, 'oscuro':1, 'alcohol':1, 'duro':1, 'no volveré':3,
-        'no sale':2, 'no gustó':2, 'irrita':2, 'brotó':2, 'ardió':2, 'horrible':3,
-        'pésimo':3, 'decepcionante':3, 'reseca':2, 'malo':2
+        'terrible':4, 'fatal':4, 'no sirve':4, 'no me gusta':3, 'arde':4, 
+        'problema':3, 'decepcionante':4, 'pasteluda':3, 'oscuro':2, 
+        'alcohol':2, 'duro':2, 'no volveré':4, 'no sale':3, 'no gustó':3, 
+        'irrita':3, 'brotó':3, 'ardió':3, 'horrible':4, 'pésimo':4, 
+        'decepcionante':4, 'reseca':3, 'malo':3, 'fatal':4, 'problemas':3
     }
     
-    # Expresiones completas (más precisas)
-    expresiones_positivas = [
-        r'es la mejor', r'lo recomiendo', r'excelente calidad', r'me encanta',
-        r'me deja la piel suave', r'super recomendado', r'funciona maravillosamente'
-    ]
-    
+    # Expresiones negativas reforzadas
     expresiones_negativas = [
-        r'no la volveré a comprar', r'no me gustó para nada', r'me irrita la piel',
-        r'me arde al aplicarla', r'es mucho más oscuro', r'no sirve el envase',
-        r'queda la piel pasteluda', r'problema con el producto'
+        (r'no la volveré a comprar', 5),
+        (r'no me gustó para nada', 5),
+        (r'me irrita la piel', 4),
+        (r'me arde al aplicarla', 5),
+        (r'es mucho más oscuro', 3),
+        (r'no sirve el envase', 4),
+        (r'queda la piel pasteluda', 4),
+        (r'problema con el producto', 4),
+        (r'no me gusta', 3),
+        (r'es terrible', 4)
     ]
     
     texto = texto.lower()
     score = 0
     
-    # Verificar expresiones completas primero (son más confiables)
-    for expr in expresiones_positivas:
+    # 1. Detectar expresiones negativas (prioridad alta)
+    for expr, peso in expresiones_negativas:
         if re.search(expr, texto):
-            score += 4
+            score -= peso
     
-    for expr in expresiones_negativas:
-        if re.search(expr, texto):
-            score -= 4
-    
-    # Puntuación por palabras clave
+    # 2. Puntuación por palabras clave
     for palabra, valor in positivo.items():
         if palabra in texto:
             score += valor
@@ -101,101 +96,98 @@ def clasificar_sentimiento(texto):
         if palabra in texto:
             score -= valor
     
-    # Clasificación final con umbrales ajustados
-    if score >= 4:
-        return "POSITIVO", score
-    elif score <= -3:
+    # 3. Clasificación con nuevos umbrales
+    if score >= 3:  # Más exigente para positivo
+        return "POSITIVO", abs(score)
+    elif score <= -3:  # Más sensible para negativo
         return "NEGATIVO", abs(score)
     else:
         return "NEUTRAL", 0
 
-# Funciones auxiliares
-def generar_resumen(texto):
-    oraciones = nltk.sent_tokenize(texto)
-    if len(oraciones) > 1:
-        return f"{oraciones[0]} [...] {oraciones[-1]}"
-    return texto
-
-def palabras_clave(textos, n=10):
-    stop_words = set(stopwords.words('spanish'))
-    palabras_comunes = {'producto', 'base', 'maquillaje', 'piel', 'como', 'que'}
-    palabras = [p.lower() for texto in textos 
-               for p in nltk.word_tokenize(texto) 
-               if p.isalpha() and p not in stop_words and p.lower() not in palabras_comunes]
-    return Counter(palabras).most_common(n)
-
 # Interfaz de usuario
 def main():
-    st.title("💄 Analizador de Comentarios Cosméticos")
+    st.title("🔍 Clasificador de Sentimientos para Cosméticos")
     
-    tab1, tab2 = st.tabs(["Clasificar Nuevo Comentario", "Analizar Opiniones Existentes"])
+    # Pestañas principales
+    tab1, tab2 = st.tabs(["Clasificar Comentario", "Analizar Opiniones"])
     
     with tab1:
-        st.header("Clasificar Sentimiento de Nuevo Comentario")
-        comentario = st.text_area("Escribe tu comentario sobre el producto:", height=150)
+        st.header("Clasificar Nuevo Comentario")
+        comentario = st.text_area("Escribe tu opinión sobre el producto:", height=150)
         
-        if st.button("Clasificar Sentimiento"):
+        if st.button("Clasificar"):
             if comentario.strip():
                 with st.spinner("Analizando..."):
-                    sentimiento, puntaje = clasificar_sentimiento(comentario)
+                    sentimiento, confianza = clasificar_sentimiento(comentario)
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.subheader("Resultado")
-                        if sentimiento == "POSITIVO":
-                            st.success(f"✅ {sentimiento} (Confianza: {puntaje})")
-                        elif sentimiento == "NEGATIVO":
-                            st.error(f"❌ {sentimiento} (Confianza: {puntaje})")
-                        else:
-                            st.info(f"➖ {sentimiento}")
+                    # Mostrar resultado con énfasis
+                    st.subheader("Resultado del Análisis")
+                    if sentimiento == "POSITIVO":
+                        st.success(f"✅ Sentimiento: {sentimiento} (Confianza: {confianza})")
+                        st.write("**Palabras positivas detectadas:**")
+                        palabras_pos = [p for p in positivo if p in comentario.lower()]
+                        st.write(", ".join(palabras_pos) if palabras_pos else "No se detectaron palabras clave positivas")
                     
-                    with col2:
-                        st.subheader("Resumen")
-                        st.text_area(" ", value=generar_resumen(comentario), height=100)
+                    elif sentimiento == "NEGATIVO":
+                        st.error(f"❌ Sentimiento: {sentimiento} (Confianza: {confianza})")
+                        st.write("**Palabras negativas detectadas:**")
+                        palabras_neg = [p for p in negativo if p in comentario.lower()]
+                        st.write(", ".join(palabras_neg) if palabras_neg else "No se detectaron palabras clave negativas")
+                    
+                    else:
+                        st.info(f"➖ Sentimiento: {sentimiento}")
+                        st.write("**Razón:** El comentario no contiene suficientes indicadores positivos o negativos fuertes")
             else:
-                st.warning("Por favor ingresa un comentario")
+                st.warning("Por favor ingresa un comentario para analizar")
     
     with tab2:
-        st.header("Análisis de las 20 Opiniones de Ejemplo")
+        st.header("Análisis de Opiniones Existentes")
         
-        # Crear DataFrame con análisis
-        df = pd.DataFrame({'OPINIÓN': opiniones})
-        df[['SENTIMIENTO', 'CONFIANZA']] = df['OPINIÓN'].apply(
-            lambda x: pd.Series(clasificar_sentimiento(x))
-        )
+        # Analizar todas las opiniones
+        resultados = []
+        for i, opinion in enumerate(opiniones):
+            sentimiento, confianza = clasificar_sentimiento(opinion)
+            resultados.append({
+                "Opinión": opinion,
+                "Sentimiento": sentimiento,
+                "Confianza": confianza
+            })
         
-        opcion = st.radio("Seleccione el análisis:",
-                         ["Ver todas las opiniones", 
-                          "Distribución de sentimientos", 
-                          "Temas principales"])
+        df = pd.DataFrame(resultados)
         
-        if opcion == "Ver todas las opiniones":
-            st.dataframe(df)
+        # Mostrar distribución
+        st.subheader("Distribución de Sentimientos")
+        dist = df['Sentimiento'].value_counts()
+        st.bar_chart(dist)
         
-        elif opcion == "Distribución de sentimientos":
-            st.subheader("Distribución de Sentimientos")
-            distribucion = df['SENTIMIENTO'].value_counts()
-            st.bar_chart(distribucion)
-            
-            st.write("**Ejemplos por categoría:**")
-            for cat in ["POSITIVO", "NEUTRAL", "NEGATIVO"]:
-                ejemplos = df[df['SENTIMIENTO'] == cat]['OPINIÓN'].head(2)
-                if not ejemplos.empty:
-                    st.write(f"**{cat.capitalize()}:**")
-                    for e in ejemplos:
-                        st.write(f"- {e[:100]}...")
+        # Mostrar ejemplos problemáticos previos
+        st.subheader("Ejemplos de Clasificación")
+        st.write("**Comentarios negativos clasificados correctamente:**")
+        ejemplos_neg = df[df['Sentimiento'] == "NEGATIVO"].sample(2)
+        for _, row in ejemplos_neg.iterrows():
+            st.write(f"- {row['Opinión'][:100]}... (Confianza: {row['Confianza']})")
         
-        elif opcion == "Temas principales":
-            st.subheader("Palabras Clave Más Frecuentes")
-            palabras = palabras_clave(opiniones)
-            st.bar_chart(pd.DataFrame(palabras, columns=['Palabra', 'Frecuencia']).set_index('Palabra'))
-            
-            st.subheader("Nube de Palabras")
-            wordcloud = WordCloud(width=800, height=400, background_color='white').generate(" ".join(opiniones))
-            plt.figure(figsize=(10, 5))
-            plt.imshow(wordcloud, interpolation='bilinear')
-            plt.axis('off')
-            st.pyplot(plt)
+        st.write("**Comentarios positivos clasificados correctamente:**")
+        ejemplos_pos = df[df['Sentimiento'] == "POSITIVO"].sample(2)
+        for _, row in ejemplos_pos.iterrows():
+            st.write(f"- {row['Opinión'][:100]}... (Confianza: {row['Confianza']})")
+
+# Variables globales para las palabras clave
+positivo = {
+    'magnífico':2, 'espectacular':2, 'maravilloso':2, 'excelente':2, 
+    'mejor':2, 'recomiendo':2, 'buen':1, 'genial':2, 'perfecto':2,
+    'bonita':1, 'natural':1, 'sana':1, 'fácil':1, 'calidad':1,
+    '10/10':3, 'diferente':1, 'lindo':1, 'bueno':1, 'económico':1,
+    'delicioso':1, 'suave':1, 'recomendado':2, 'aliado':1
+}
+
+negativo = {
+    'terrible':4, 'fatal':4, 'no sirve':4, 'no me gusta':3, 'arde':4, 
+    'problema':3, 'decepcionante':4, 'pasteluda':3, 'oscuro':2, 
+    'alcohol':2, 'duro':2, 'no volveré':4, 'no sale':3, 'no gustó':3, 
+    'irrita':3, 'brotó':3, 'ardió':3, 'horrible':4, 'pésimo':4, 
+    'decepcionante':4, 'reseca':3, 'malo':3, 'fatal':4, 'problemas':3
+}
 
 if __name__ == "__main__":
     main()
