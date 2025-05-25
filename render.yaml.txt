@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: analizador-opiniones-optimizado
+    name: analisis-opiniones-completo
     plan: free
     region: ohio
     buildCommand: |
